@@ -1,5 +1,6 @@
 <RCC>
   <qresource prefix="icons">
+    <file>test-tube.png</file>
     <file>menu.png</file>
     <file>stop.png</file>
     <file>squares.png</file>
