@@ -6,7 +6,6 @@ import datetime
 
 # NOTE: it is not best practice with the with statements and directly use a connection but it is also not forbidden and
 # makes the code nice and clean as the with statement terminates the connection to the database after execution
-import numpy as np
 
 CREATE_BLOOD_TABLE = """
     CREATE TABLE IF NOT EXISTS blood (
@@ -164,9 +163,8 @@ class SQLiteDatabase:
             :param  float anti_ebv: [U/ml]
             :param  float vit_d: [µg/l]
         """
+        date = datetime.date(year, month, day)
         try:
-            date = datetime.date(year, month, day)
-
             with self.connection:
                 self.connection.execute(INSERT_BLOOD, (str(date), cholesterol, triglyceride, protein, leuko, erythro,
                                                        haemo, gluc, uric_acid, bili, phosphate, gamma_gt, got, gpt, ldh,
@@ -224,7 +222,8 @@ class SQLiteDatabase:
             raise AttributeError("Entries are stored as bytes and can't be searched")
         try:
             with self.connection:
-                ret = self.connection.execute(f"SELECT * FROM {table_name} WHERE {column_name} = ?;", (entry_name,)).fetchall()
+                ret = self.connection.execute(f"SELECT * FROM {table_name} WHERE {column_name} = ?;",
+                                              (entry_name,)).fetchall()
                 return check_for_bytes(ret)
         except sqlite3.OperationalError as err:
             print(err)
@@ -269,7 +268,8 @@ class SQLiteDatabase:
             raise AttributeError("Entries are stored as bytes and can't be searched")
         try:
             with self.connection:
-                return self.connection.execute(f"SELECT COUNT(*) FROM {table_name} WHERE {column_name} = ?;", (entry_name,)).fetchone()[0]
+                return self.connection.execute(f"SELECT COUNT(*) FROM {table_name} WHERE {column_name} = ?;",
+                                               (entry_name,)).fetchone()[0]
         except sqlite3.OperationalError:
             print(f"Accessing wrong table {table_name}."
                   f"Available tables are {[tab[0] for tab in self.get_table_names()]}")
@@ -348,7 +348,8 @@ class SQLiteDatabase:
         with self.connection:
             self.connection.execute(f"""ALTER TABLE {old} RENAME TO {new}""")
 
-    def update_entry(self, table_name: str, column_name_search: str, keyword: str, column_name_replace: str, value_new: str):
+    def update_entry(self, table_name: str, column_name_search: str,
+                     keyword: str, column_name_replace: str, value_new: str):
         """ Update a single entry based on the old value in the column. Is most likely similar to
         replace_specific and change specific entry
 
@@ -361,8 +362,9 @@ class SQLiteDatabase:
         try:
             with self.connection:
                 # NOTE: pure f string formatting didnt work so its a mixture. Don't know why
-                self.connection.execute(f"""UPDATE {table_name} SET {column_name_replace} = ? WHERE {column_name_search} = ?;""",
-                                        (value_new, keyword))
+                self.connection.execute(
+                    f"""UPDATE {table_name} SET {column_name_replace} = ? WHERE {column_name_search} = ?;""",
+                    (value_new, keyword))
         except sqlite3.OperationalError as err:
             print(err)
 
@@ -400,3 +402,4 @@ def convert_to_list(lst: List[tuple]) -> List[list]:
 
 if __name__ == "__main__":
     database = SQLiteDatabase("/home/nico/Documents", "blood_values.db")
+    database.add_sample()
