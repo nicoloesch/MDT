@@ -9,7 +9,6 @@
 
 
 from PyQt5 import QtCore, QtGui, QtWidgets
-import UI.icons_rc
 
 
 class Ui_MainWindow(object):
@@ -118,10 +117,9 @@ class Ui_MainWindow(object):
         self.centerDisplay.setObjectName("centerDisplay")
         self.horizontalLayout_5 = QtWidgets.QHBoxLayout(self.centerDisplay)
         self.horizontalLayout_5.setObjectName("horizontalLayout_5")
-        self.label = QtWidgets.QLabel(self.centerDisplay)
-        self.label.setText("")
-        self.label.setObjectName("label")
-        self.horizontalLayout_5.addWidget(self.label)
+        self.bloodWidget = PlotWidget(self.centerDisplay)
+        self.bloodWidget.setObjectName("bloodWidget")
+        self.horizontalLayout_5.addWidget(self.bloodWidget)
         self.horizontalLayout.addWidget(self.centerDisplay)
         self.rightMenu = QtWidgets.QFrame(self.mainBody)
         self.rightMenu.setMaximumSize(QtCore.QSize(50, 16777215))
@@ -158,7 +156,8 @@ class Ui_MainWindow(object):
     def retranslateUi(self, MainWindow):
         _translate = QtCore.QCoreApplication.translate
         MainWindow.setWindowTitle(_translate("MainWindow", "MainWindow"))
-
+from pyqtgraph import PlotWidget
+import ui.icons_rc
 
 
 if __name__ == "__main__":

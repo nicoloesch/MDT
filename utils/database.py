@@ -3,10 +3,10 @@ import os
 from typing import Union, List
 import pickle
 import datetime
+import pandas as pd
 
 # NOTE: it is not best practice with the with statements and directly use a connection but it is also not forbidden and
 # makes the code nice and clean as the with statement terminates the connection to the database after execution
-
 CREATE_BLOOD_TABLE = """
     CREATE TABLE IF NOT EXISTS blood (
     id INTEGER PRIMARY KEY,
@@ -59,14 +59,13 @@ vit_d) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?
 
 
 class SQLiteDatabase:
-    def __init__(self, database_path: str, database_name: str):
+    def __init__(self, database_path: str):
         """Connect to database as initialization
 
             :param database_path: path to the database
             :param database_name: name of the database
             """
-        self.connection = sqlite3.connect(os.path.join(database_path, database_name))
-        self.database = database_name
+        self.connection = sqlite3.connect(database_path)
 
     def create_blood_table(self):
         """ Create a table within a connected database with columns\n
@@ -195,7 +194,21 @@ class SQLiteDatabase:
             print("Error")
             return False
 
-    def get_entries_all(self, table_name: str) -> List[list]:
+    def get_column_names(self, table_name: str):
+        """ Get the column names of a specified table
+
+            :param str table_name: name of the table from which to get entries
+            :returns: List of tuples with all column names of the table
+            """
+        try:
+            with self.connection:
+                ret = self.connection.execute(f"SELECT * FROM {table_name};")
+                return list(map(lambda x: x[0], ret.description))
+        except sqlite3.OperationalError:
+            print(f"Accessing wrong table {table_name}."
+                  f"Available tables are {[tab[0] for tab in self.get_table_names()]}")
+
+    def get_entries_all(self, table_name: str) -> pd.DataFrame:
         """ Get all the entries within the specified table
 
             :param str table_name: name of the table from which to get entries
@@ -203,32 +216,15 @@ class SQLiteDatabase:
             """
         try:
             with self.connection:
-                ret = self.connection.execute(f"SELECT * FROM {table_name};").fetchall()
-                return check_for_bytes(ret)
+                data = check_for_bytes(self.connection.execute(
+                    f"SELECT * FROM {table_name} ORDER BY date ASC;").fetchall())
+                column_names = self.get_column_names(table_name)
+                return pd.DataFrame(data=data, columns=column_names), column_names
         except sqlite3.OperationalError:
             print(f"Accessing wrong table {table_name}."
                   f"Available tables are {[tab[0] for tab in self.get_table_names()]}")
 
-    def get_entries_specific(self, table_name: str, column_name: str, entry_name: str):
-        """ Get all the entries where the entry_name is in the column specified by column_name
-
-            :param str entry_name: exact (?) string of the elements which are searched for. I.e "video" would give all
-            rows with "video" as entry of the specified column
-            :param str table_name: name of the table from which to get entries
-            :param str column_name: name of the column in which to search for the entry_name
-            :returns: List of tuples with all columns and rows of the table
-            """
-        if table_name == "labels" and column_name == "label_list":
-            raise AttributeError("Entries are stored as bytes and can't be searched")
-        try:
-            with self.connection:
-                ret = self.connection.execute(f"SELECT * FROM {table_name} WHERE {column_name} = ?;",
-                                              (entry_name,)).fetchall()
-                return check_for_bytes(ret)
-        except sqlite3.OperationalError as err:
-            print(err)
-
-    def get_entries_of_column(self, table_name: str, column_name: str):
+    def get_entries_column(self, table_name: str, column_name: str):
         """ Get all the entries within the table by the specifier of the column
 
             :param str table_name: name of the table from which to get entries
@@ -256,24 +252,6 @@ class SQLiteDatabase:
             print(f"Accessing wrong table {table_name}."
                   f"Available tables are {[tab[0] for tab in self.get_table_names()]}")
 
-    def get_num_entries_specific(self, table_name: str, column_name: str, entry_name: str) -> int:
-        """ Returns number of entries which match the specifier entry_name of the column
-
-            :param str entry_name: name of the video one wants
-            :param str table_name: name of the table from which to get entries
-            :param str column_name: name of the column in which to search for the entry_name
-            :returns: List of tuples with all columns and rows of the table
-            """
-        if table_name == "labels" and column_name == "label_list":
-            raise AttributeError("Entries are stored as bytes and can't be searched")
-        try:
-            with self.connection:
-                return self.connection.execute(f"SELECT COUNT(*) FROM {table_name} WHERE {column_name} = ?;",
-                                               (entry_name,)).fetchone()[0]
-        except sqlite3.OperationalError:
-            print(f"Accessing wrong table {table_name}."
-                  f"Available tables are {[tab[0] for tab in self.get_table_names()]}")
-
     def delete_table(self, table_name: str):
         """ Delete entire table
 
@@ -285,43 +263,6 @@ class SQLiteDatabase:
         except sqlite3.OperationalError:
             print(f"Accessing wrong table {table_name}."
                   f"Available tables are {[tab[0] for tab in self.get_table_names()]}")
-
-    def change_specific_entry(self, table_name: str, row_id: int, column_name: str, new_value: str):
-        """ Change one specific entry based on the row_id, column_name and table_name,
-
-            :param str table_name: name of the table where to alter the entry
-            :param int row_id: ID of the row
-            :param str column_name: name of the column the entry is in
-            :param str new_value: new value to replace the old with
-            """
-        try:
-            with self.connection:
-                # NOTE: pure f string formatting didnt work so its a mixture. Don't know why
-                self.connection.execute(f"""UPDATE {table_name} SET {column_name} = ? WHERE id = {row_id} ;""",
-                                        (new_value,))
-        except sqlite3.OperationalError as err:
-            print(err)
-
-    def replace_specific(self, table_name: str, column_name, keyword: str, replacement: str):
-        """ Change all entries within a table and column that contain a certain string
-
-            :param str table_name: name of the table where to alter the entry
-            :param str column_name: name of the column the entry is in
-            :param str keyword: keyword to search for
-            :param str replacement: replacement value
-            """
-        if table_name == "labels" and column_name == "label_list":
-            raise AttributeError("Entries are stored as bytes and can't be accessed")
-        try:
-            with self.connection:
-                # NOTE: pure f string formatting didnt work so its a mixture. Don't know why
-                self.connection.execute(
-                    f"""UPDATE {table_name} SET {column_name} = 
-                    REPLACE({column_name}, ?, ?);""",
-                    (keyword, replacement,))
-
-        except sqlite3.OperationalError as err:
-            print(err)
 
     def rename_column(self, table_name, old_column_name, new_column_name):
         """ Change all entries within a table and column that contain a certain string
@@ -348,7 +289,7 @@ class SQLiteDatabase:
         with self.connection:
             self.connection.execute(f"""ALTER TABLE {old} RENAME TO {new}""")
 
-    def update_entry(self, table_name: str, column_name_search: str,
+    def set_entry(self, table_name: str, column_name_search: str,
                      keyword: str, column_name_replace: str, value_new: str):
         """ Update a single entry based on the old value in the column. Is most likely similar to
         replace_specific and change specific entry
@@ -401,5 +342,7 @@ def convert_to_list(lst: List[tuple]) -> List[list]:
 
 
 if __name__ == "__main__":
-    database = SQLiteDatabase("/home/nico/Documents", "blood_values.db")
-    database.add_sample()
+    database = SQLiteDatabase("/home/nico/Documents/blood_values.db")
+    a, col = database.get_entries_all("blood")
+    four = 4
+
